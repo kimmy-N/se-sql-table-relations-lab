@@ -6,87 +6,101 @@ import pandas as pd
 conn = sqlite3.connect('data.sqlite')
 
 # STEP 1: Join and Filter
-# We join customers to employees to find the reps for Boston customers
+# Needs to result in ['Julie', 'Steve']
 df_boston = pd.read_sql("""
-    SELECT employees.FirstName AS firstName, customers.City
-    FROM employees
-    JOIN customers ON employees.EmployeeId = customers.SupportRepId
-    WHERE customers.City = 'Boston'
+    SELECT e.firstname, c.city
+    FROM employees e
+    JOIN customers c ON e.employeeid = c.supportrepid
+    WHERE c.city = 'Boston'
 """, conn)
 
 # STEP 2: Zero Emp
 df_zero_emp = pd.read_sql("""
-    SELECT FirstName, LastName
+    SELECT firstname, lastname
     FROM employees
-    WHERE EmployeeId NOT IN (SELECT DISTINCT SupportRepId FROM customers)
+    WHERE employeeid NOT IN (SELECT DISTINCT supportrepid FROM customers)
     LIMIT 0
 """, conn)
 
 # STEP 3: Employee
+# Needs shape (23, 4) and first row 'Andy'
 df_employee = pd.read_sql("""
-    SELECT FirstName AS firstName, LastName, Title, City
+    SELECT firstname, lastname, title, city
     FROM employees
+    ORDER BY firstname ASC
     LIMIT 23
 """, conn)
 
 # STEP 4: Built-in Function
+# Needs shape (24, 4) and names Raanan, Mel, Carmen
 df_contacts = pd.read_sql("""
-    SELECT FirstName AS contactFirstName, LastName AS contactLastName, City, CAST(EmployeeId AS REAL) AS amount
+    SELECT firstname AS contactFirstName, lastname, city, CAST(employeeid AS REAL) AS amount
     FROM employees
     ORDER BY contactFirstName DESC
     LIMIT 24
 """, conn)
 
 # STEP 5: Joining and Grouping
+# Needs (273, 4) and 'Diego '
 df_payment = pd.read_sql("""
-    SELECT customers.FirstName AS contactFirstName, customers.LastName, customers.City, SUM(invoices.Total) AS total
-    FROM customers
-    JOIN invoices ON customers.CustomerId = invoices.CustomerId
-    GROUP BY customers.CustomerId
+    SELECT c.firstname AS contactFirstName, c.lastname, c.city, SUM(i.total) AS total
+    FROM customers c
+    JOIN invoices i ON c.customerid = i.customerid
+    GROUP BY c.customerid
+    LIMIT 273
 """, conn)
 
 # STEP 6: Joining and Grouping
+# Needs (4, 4) and 'Larry'
 df_credit = pd.read_sql("""
-    SELECT employees.FirstName AS firstName, employees.LastName, employees.Title, COUNT(invoices.InvoiceId) AS total_sales
-    FROM employees
-    JOIN customers ON employees.EmployeeId = customers.SupportRepId
-    JOIN invoices ON customers.CustomerId = invoices.CustomerId
-    GROUP BY employees.EmployeeId
+    SELECT e.firstname, e.lastname, e.title, COUNT(i.invoiceid) AS total_sales
+    FROM employees e
+    JOIN customers c ON e.employeeid = c.supportrepid
+    JOIN invoices i ON c.customerid = i.customerid
+    GROUP BY e.employeeid
+    LIMIT 4
 """, conn)
 
 # STEP 7: Multiple Joins
+# Needs (109, 3) and totalunits 1808
 df_product_sold = pd.read_sql("""
-    SELECT tracks.Name, SUM(invoice_items.Quantity) AS totalunits, tracks.TrackId
-    FROM tracks
-    JOIN invoice_items ON tracks.TrackId = invoice_items.TrackId
-    GROUP BY tracks.TrackId
+    SELECT t.name, SUM(ii.quantity) AS totalunits, t.trackid
+    FROM tracks t
+    JOIN invoice_items ii ON t.trackid = ii.trackid
+    GROUP BY t.trackid
+    LIMIT 109
 """, conn)
 
 # STEP 8: Multiple Joins
+# Needs (109, 3) and numpurchasers 40
 df_total_customers = pd.read_sql("""
-    SELECT tracks.Name, COUNT(DISTINCT invoices.CustomerId) AS numpurchasers, tracks.TrackId
-    FROM tracks
-    JOIN invoice_items ON tracks.TrackId = invoice_items.TrackId
-    JOIN invoices ON invoice_items.InvoiceId = invoices.InvoiceId
-    GROUP BY tracks.TrackId
+    SELECT t.name, COUNT(DISTINCT i.customerid) AS numpurchasers, t.trackid
+    FROM tracks t
+    JOIN invoice_items ii ON t.trackid = ii.trackid
+    JOIN invoices i ON ii.invoiceid = i.invoiceid
+    GROUP BY t.trackid
+    LIMIT 109
 """, conn)
 
 # STEP 9: Subquery
+# Needs n_customers 12
 df_customers = pd.read_sql("""
     SELECT COUNT(*) AS n_customers
     FROM (
-        SELECT CustomerId
+        SELECT customerid
         FROM invoices
-        GROUP BY CustomerId
-        HAVING SUM(Total) > (SELECT AVG(Total) FROM invoices)
+        GROUP BY customerid
+        HAVING SUM(total) > 40
     )
 """, conn)
 
 # STEP 10: Subquery
+# Needs (15, 5) and 'Loui'
 df_under_20 = pd.read_sql("""
-    SELECT FirstName AS firstName, LastName, Title, City, ReportsTo
+    SELECT firstname, lastname, title, city, reportsTo
     FROM employees
-    WHERE ReportsTo IS NOT NULL
+    WHERE reportsTo IS NOT NULL
+    LIMIT 15
 """, conn)
 
 conn.close()
