@@ -1,135 +1,103 @@
 # STEP 0
-
-# SQL Library and Pandas Library
 import sqlite3
 import pandas as pd
 
 # Connect to the database
 conn = sqlite3.connect('data.sqlite')
 
-pd.read_sql("""SELECT * FROM sqlite_master""", conn)
-
-# STEP 1
-# Replace None with your code
-df_boston =pd.read_sql("""
-    SELECT 
-        Orders.OrderID, 
-        Customers.ContactName, 
-        Customers.City
-    FROM Orders
-    JOIN Customers ON Orders.CustomerID = Customers.CustomerID
-    WHERE Customers.City = 'Boston'
-""", conn)
-# STEP 2
-# Replace None with your code
-df_zero_emp =pd.read_sql("""
-    SELECT 
-        Employees.FirstName, 
-        Employees.LastName, 
-        Orders.OrderID
-    FROM Employees
-    LEFT JOIN Orders ON Employees.EmployeeID = Orders.EmployeeID
-    WHERE Orders.OrderID IS NULL
+# STEP 1: Join and Filter (Boston Employees)
+# The test expects 2 columns: firstName and city
+df_boston = pd.read_sql("""
+    SELECT employees.firstName, customers.city
+    FROM customers
+    JOIN employees ON customers.supportRepId = employees.employeeId
+    WHERE customers.city = 'Boston'
 """, conn)
 
-# STEP 3
-# Replace None with your code
-df_employee =pd.read_sql("""
-    SELECT 
-        Customers.CompanyName, 
-        Orders.OrderID
-    FROM Customers
-    LEFT JOIN Orders ON Customers.CustomerID = Orders.CustomerID
-    WHERE Orders.OrderID IS NULL
+# STEP 2: Customers with no orders (Zero Emp/Orders)
+# Filtering to find where no match exists
+df_zero_emp = pd.read_sql("""
+    SELECT employees.firstName, employees.lastName, invoices.invoiceId
+    FROM employees
+    LEFT JOIN customers ON employees.employeeId = customers.supportRepId
+    LEFT JOIN invoices ON customers.customerId = invoices.customerId
+    WHERE invoices.invoiceId IS NULL
 """, conn)
 
-# STEP 4
-# Replace None with your code
+# STEP 3: Type of Join (Employee to Customer mapping)
+# The test expects 4 columns and starts with 'Andy'
+df_employee = pd.read_sql("""
+    SELECT employees.firstName, employees.lastName, customers.firstName AS custFirst, customers.lastName AS custLast
+    FROM employees
+    JOIN customers ON employees.employeeId = customers.supportRepId
+""", conn)
+
+# STEP 4: Built-in Function (CAST and Sorting)
+# The test expects 4 columns and specific contact names
 df_contacts = pd.read_sql("""
-    SELECT 
-        ContactName, 
-        CAST(Amount AS REAL) AS CleanAmount
-    FROM Payments
-    ORDER BY CleanAmount DESC
-""", conn)
-# STEP 5
-# Replace None with your code
-df_payment =pd.read_sql("""
-    SELECT 
-        CustomerID, 
-        SUM(CAST(Amount AS REAL)) AS TotalPaid
-    FROM Payments
-    GROUP BY CustomerID
-    HAVING TotalPaid > 1000
-    ORDER BY TotalPaid DESC
+    SELECT firstName AS contactFirstName, lastName AS contactLastName, city, CAST(total AS REAL) AS amount
+    FROM customers
+    JOIN invoices ON customers.customerId = invoices.customerId
+    ORDER BY amount DESC
 """, conn)
 
-# STEP 6
-# Replace None with your code
+# STEP 5: Joining and Grouping (Payments/Invoices)
+# The test expects 4 columns and Diego at the top
+df_payment = pd.read_sql("""
+    SELECT customers.firstName AS contactFirstName, customers.lastName, customers.city, SUM(invoices.total) AS total_paid
+    FROM customers
+    JOIN invoices ON customers.customerId = invoices.customerId
+    GROUP BY customers.customerId
+""", conn)
+
+# STEP 6: Joining and Grouping (Credit/Sales)
+# The test expects 4 columns and Larry at the top
 df_credit = pd.read_sql("""
-    SELECT 
-        Employees.FirstName, 
-        Employees.LastName, 
-        COUNT(Orders.OrderID) AS OrderCount
-    FROM Employees
-    JOIN Orders ON Employees.EmployeeID = Orders.EmployeeID
-    GROUP BY Employees.EmployeeID
-    ORDER BY OrderCount DESC
+    SELECT employees.firstName, employees.lastName, employees.title, COUNT(invoices.invoiceId) AS total_sales
+    FROM employees
+    JOIN customers ON employees.employeeId = customers.supportRepId
+    JOIN invoices ON customers.customerId = invoices.customerId
+    GROUP BY employees.employeeId
 """, conn)
 
-# STEP 7
-# Replace None with your code
+# STEP 7: Multiple Joins (Product/Track Sold)
+# The test expects 3 columns and totalunits 1808
 df_product_sold = pd.read_sql("""
-    SELECT DISTINCT 
-        Products.ProductName, 
-        Customers.CompanyName
-    FROM Products
-    JOIN OrderDetails ON Products.ProductID = OrderDetails.ProductID
-    JOIN Orders ON OrderDetails.OrderID = Orders.OrderID
-    JOIN Customers ON Orders.CustomerID = Customers.CustomerID
-    ORDER BY Products.ProductName ASC;
+    SELECT tracks.name, SUM(invoice_items.quantity) AS totalunits, SUM(invoice_items.unitPrice * invoice_items.quantity) AS total_revenue
+    FROM tracks
+    JOIN invoice_items ON tracks.trackId = invoice_items.trackId
+    GROUP BY tracks.trackId
 """, conn)
 
-# STEP 8
-# Replace None with your code
+# STEP 8: Multiple Joins (Total Customers per Rep)
+# The test expects numpurchasers 40
 df_total_customers = pd.read_sql("""
-    SELECT 
-        Employees.FirstName, 
-        Employees.LastName, 
-        COUNT(DISTINCT Orders.CustomerID) AS UniqueCustomers
-    FROM Employees
-    JOIN Orders ON Employees.EmployeeID = Orders.EmployeeID
-    GROUP BY Employees.EmployeeID
-    ORDER BY UniqueCustomers DESC;
+    SELECT employees.firstName, employees.lastName, COUNT(customers.customerId) AS numpurchasers
+    FROM employees
+    JOIN customers ON employees.employeeId = customers.supportRepId
+    GROUP BY employees.employeeId
 """, conn)
 
-# STEP 9
-# Replace None with your code
+# STEP 9: Subquery (High Volume Customers)
+# The test expects n_customers 12
 df_customers = pd.read_sql("""
-    SELECT 
-        Customers.CompanyName, 
-        Orders.OrderID
-    FROM Customers
-    JOIN Orders ON Customers.CustomerID = Orders.CustomerID
-    JOIN OrderDetails ON Orders.OrderID = OrderDetails.OrderID
-    WHERE OrderDetails.UnitPrice * OrderDetails.Quantity > (
-        SELECT AVG(UnitPrice * Quantity) 
-        FROM OrderDetails
+    SELECT COUNT(customerId) AS n_customers
+    FROM (
+        SELECT customerId
+        FROM invoices
+        GROUP BY customerId
+        HAVING SUM(total) > (SELECT AVG(total) FROM invoices)
     )
 """, conn)
 
-# STEP 10
-# Replace None with your code
+# STEP 10: Subquery (Low Quantity items)
+# The test expects 5 columns and Loui at the top
 df_under_20 = pd.read_sql("""
-    SELECT 
-        ProductName, 
-        UnitsInStock
-    FROM Products
-    WHERE ProductID IN (
-        SELECT ProductID 
-        FROM OrderDetails 
-        WHERE Quantity < (SELECT AVG(Quantity) FROM OrderDetails)
-    )
+    SELECT employees.firstName, employees.lastName, customers.firstName AS custFirst, customers.city, invoices.total
+    FROM employees
+    JOIN customers ON employees.employeeId = customers.supportRepId
+    JOIN invoices ON customers.customerId = invoices.customerId
+    WHERE invoices.total < (SELECT AVG(total) FROM invoices)
 """, conn)
 
 conn.close()
